@@ -1,14 +1,18 @@
 # main.py
 import logging
 import os
-from fastapi import FastAPI, HTTPException, Request
+from fastapi import FastAPI, HTTPException, Request, Depends
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.security import OAuth2PasswordRequestForm
+from app.auth import create_access_token, decode_access_token
 from fastapi.responses import JSONResponse
-from pydantic import BaseModel
-from openai import OpenAI
-from dotenv import load_dotenv
 
-load_dotenv()
+from app.chatbot import router as chatbot_router
+from app.users import router as users_router
+import app.recommender
+
+
+
 
 app = FastAPI()
 
@@ -31,44 +35,22 @@ async def custom_exception_handler(request: Request, exc: Exception):
 async def create_error():
     raise ValueError("This is a test error to trigger logging.")
 
-# Load the Hugging Face API token and base URL from the environment
-HF_TOKEN = os.getenv("HF_TOKEN")
-BASE_URL = os.getenv("BASE_URL")
-
-if not HF_TOKEN or not BASE_URL:
-    raise ValueError("HF_TOKEN and BASE_URL must be set in the .env file")
-
-# Initialize the OpenAI client with the Hugging Face Inference API
-client = OpenAI(
-    base_url=f"{BASE_URL}/v1/",
-    api_key=HF_TOKEN
-)
-
-class QueryRequest(BaseModel):
-    question: str
+async def get_current_user(request: Request):
+    token = request.cookies.get("access_token")
+    if token is None:
+        raise HTTPException(status_code=403, detail="Not authenticated")
+    payload = decode_access_token(token)
+    if payload is None:
+        raise HTTPException(status_code=403, detail="Invalid session")
+    return payload["sub"]
 
 @app.get("/", tags=["root"])
-async def root():
-    return {"message": "Hello World"}
+async def root(user: str = Depends(get_current_user)):
+    return {
+        "recommendation": recommender.generate(),
+        "trending": recommender.trending(),
+    }
 
-@app.post("/query", tags=["RAG"])
-async def query_rag(request: QueryRequest):
-    try:
-        # Prepare the messages for the chat completion
-        messages = [
-            {"role": "system", "content": "Ets un asistent recomanador que s'encarrega de recomanar activitats."},
-            {"role": "user", "content": request.question}
-        ]
+app.include_router(users_router, prefix="/users", tags=["users"])
+app.include_router(chatbot_router, prefix="/cb", tags=["chatbot"])
 
-        # Call the chat completion endpoint
-        chat_completion = client.chat.completions.create(
-            model="tgi",
-            messages=messages,
-            max_tokens=1000
-        )
-
-        # Extract the response text
-        answer = chat_completion.choices[0].message.content
-        return {"answer": answer}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
