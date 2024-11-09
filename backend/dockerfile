@@ -1,0 +1,27 @@
+FROM python:3.11.3
+ENV PYTHONUNBUFFERED=True
+
+# Install system dependencies
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    libexpat1 \
+    && rm -rf /var/lib/apt/lists/*
+
+# Upgrade pip
+RUN pip install --upgrade pip
+
+# Copy and install dependencies
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Set the working directory
+ENV APP_HOME=/root
+WORKDIR $APP_HOME
+
+# Copy application code
+COPY /app $APP_HOME/app
+
+# Expose the port
+EXPOSE 8080
+
+# Start the application
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8080"]
