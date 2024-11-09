@@ -45,7 +45,15 @@ async def get_recommendations(
     try:
         logger.info(f"Solicitando recomendaciones para usuario {user_id}")
         
-        recommender = ContentRecommender()
+        try:
+            recommender = ContentRecommender()
+        except Exception as e:
+            logger.error(f"Error inicializando ContentRecommender: {str(e)}")
+            raise HTTPException(
+                status_code=500,
+                detail=f"Error inicializando el sistema de recomendaciones: {str(e)}"
+            )
+            
         recommendations = recommender.generate(user_id)
         
         if isinstance(recommendations, dict) and recommendations.get("error"):

@@ -50,10 +50,21 @@ class ContentRecommender:
             db_path (Optional[str]): Ruta a la base de datos. Si no se proporciona,
                                    se usará la configuración por defecto.
         """
-        self.config = MemoryConfig()
-        self.db_path = db_path if db_path else self.config.db_path
-        self.setup_tools()
-        self.setup_agents()
+        try:
+            self.config = MemoryConfig()
+            self.db_path = db_path if db_path else self.config.db_path
+            
+            # Verificar que el archivo de base de datos existe
+            if not os.path.exists(self.db_path):
+                raise FileNotFoundError(f"No se encontró la base de datos en: {self.db_path}")
+                
+            self.setup_tools()
+            self.setup_agents()
+            logger.info(f"ContentRecommender inicializado con BD: {self.db_path}")
+            
+        except Exception as e:
+            logger.error(f"Error inicializando ContentRecommender: {str(e)}")
+            raise
     
     def analyze_schema(self) -> str:
         """Analiza y extrae el esquema de la base de datos educativa"""
