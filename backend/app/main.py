@@ -11,6 +11,7 @@ from typing import Dict
 from app.chatbot import router as chatbot_router
 from app.users import router as users_router
 from app.recommender import ContentRecommender
+from api.endpoints.recommendations import router as recommendations_router
 
 app = FastAPI(
     title="AinaHack API",
@@ -104,4 +105,5 @@ async def get_recommendations(current_user: str = Depends(get_current_user)):
 
 app.include_router(users_router, prefix="/users", tags=["users"])
 app.include_router(chatbot_router, prefix="/cb", tags=["chatbot"])
+app.include_router(recommendations_router, prefix="/api", tags=["recommendations"])
 
