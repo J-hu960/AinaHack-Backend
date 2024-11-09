@@ -1,5 +1,4 @@
 from typing import Dict, List, Optional
-from datetime import datetime
 import logging
 import sqlite3
 import pandas as pd
@@ -7,22 +6,22 @@ import json
 import os
 from pathlib import Path
 from crewai import Agent, Task, Crew, Process
-from langchain.tools import Tool
+from langchain.tools import Tool  # Import Tool from langchain.tools
 from pydantic import BaseModel
 
-# Configurar logging
+# Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 class MemoryConfig:
-    """Configuración del sistema de memoria"""
+    """System memory configuration"""
     def __init__(self):
-        # Obtener ruta base del proyecto
+        # Get base project path
         self.project_root = Path(__file__).parent.parent.parent
-        # Definir ruta estándar para la BD
+        # Define standard path for the DB
         self.db_dir = self.project_root / "backend" / "db"
         self.db_path = str(self.db_dir / "jaa.sqlite")
-        # Crear directorio si no existe
+        # Create directory if it doesn't exist
         os.makedirs(self.db_dir, exist_ok=True)
 
 class Recomendacion(BaseModel):
@@ -41,33 +40,39 @@ class Recomendacion(BaseModel):
     class Config:
         from_attributes = True
 
+class EmptyArgs(BaseModel):
+    pass
+
+class QueryDatabaseArgs(BaseModel):
+    query: str
+
 class ContentRecommender:
     def __init__(self, db_path: Optional[str] = None):
         """
-        Inicializa el recomendador de contenido
+        Initializes the content recommender
         
         Args:
-            db_path (Optional[str]): Ruta a la base de datos. Si no se proporciona,
-                                   se usará la configuración por defecto.
+            db_path (Optional[str]): Path to the database. If not provided,
+                                     the default configuration will be used.
         """
         try:
             self.config = MemoryConfig()
             self.db_path = db_path if db_path else self.config.db_path
-            
-            # Verificar que el archivo de base de datos existe
+
+            # Verify that the database file exists
             if not os.path.exists(self.db_path):
-                raise FileNotFoundError(f"No se encontró la base de datos en: {self.db_path}")
+                raise FileNotFoundError(f"Database not found at: {self.db_path}")
                 
             self.setup_tools()
             self.setup_agents()
-            logger.info(f"ContentRecommender inicializado con BD: {self.db_path}")
-            
+            logger.info(f"ContentRecommender initialized with DB: {self.db_path}")
+                
         except Exception as e:
-            logger.error(f"Error inicializando ContentRecommender: {str(e)}")
+            logger.error(f"Error initializing ContentRecommender: {str(e)}")
             raise
-    
+
     def analyze_schema(self) -> str:
-        """Analiza y extrae el esquema de la base de datos educativa"""
+        """Analyzes and extracts the schema of the educational database"""
         try:
             conn = sqlite3.connect(self.db_path)
             cursor = conn.cursor()
@@ -103,43 +108,46 @@ class ContentRecommender:
             conn.close()
             return json.dumps(schema_info, indent=2)
         except Exception as e:
-            logger.error(f"Error analizando schema: {str(e)}")
+            logger.error(f"Error analyzing schema: {str(e)}")
             return json.dumps({"error": str(e)})
 
     def query_database(self, query: str) -> str:
-        """Consulta y analiza el contenido de la base de datos educativa"""
+        """Queries and analyzes the content of the educational database"""
         try:
             conn = sqlite3.connect(self.db_path)
             df = pd.read_sql_query(query, conn)
             conn.close()
             return df.to_json(orient='records', date_format='iso', default_handler=str)
         except Exception as e:
-            logger.error(f"Error en consulta: {str(e)}")
+            logger.error(f"Error in query: {str(e)}")
             return json.dumps({"error": str(e)})
 
     def setup_tools(self):
-        """Configura las herramientas del recomendador"""
+        """Configures the recommender's tools"""
+        from langchain.tools import Tool  # Import Tool from langchain.tools
+
         self.schema_tool = Tool(
             name="Database Schema Analyzer",
             func=self.analyze_schema,
-            description="Analiza y extrae el esquema completo de la base de datos educativa",
-            return_direct=True
+            description="Analyzes and extracts the complete schema of the educational database",
+            return_direct=True,
+            args_schema=EmptyArgs
         )
 
         self.query_tool = Tool(
             name="Database Query Tool",
             func=self.query_database,
-            description="Ejecuta consultas SQL en la base de datos y retorna los resultados en formato JSON",
-            return_direct=True
+            description="Executes SQL queries on the database and returns results in JSON format",
+            return_direct=True,
+            args_schema=QueryDatabaseArgs
         )
 
     def setup_agents(self):
-        """Configura los agentes del sistema"""
+        """Configures the system's agents"""
         self.schema_analyzer = Agent(
             role="Database Schema Analyst",
-            goal="Analizar y documentar la estructura de la base de datos SQLite",
-            backstory="""Experto en análisis de bases de datos educativas con amplia 
-                     experiencia en SQLite y sistemas de recomendación.""",
+            goal="Analyze and document the structure of the SQLite educational database",
+            backstory="""Expert in educational database analysis with extensive experience in SQLite and recommendation systems.""",
             tools=[self.schema_tool],
             verbose=True,
             allow_delegation=False
@@ -147,9 +155,8 @@ class ContentRecommender:
 
         self.content_analyzer = Agent(
             role="Educational Content Analyst",
-            goal="Analizar contenido y generar recomendaciones personalizadas",
-            backstory="""Especialista en análisis de contenido educativo y sistemas 
-                     de recomendación con enfoque en personalización.""",
+            goal="Analyze content and generate personalized recommendations",
+            backstory="""Specialist in educational content analysis and recommendation systems focusing on personalization.""",
             tools=[self.query_tool],
             verbose=True,
             allow_delegation=False
@@ -157,15 +164,16 @@ class ContentRecommender:
 
     def generate(self, usuario_id: int) -> Dict:
         """
-        Genera recomendaciones personalizadas para un usuario
+        Generates personalized recommendations for a user.
         
         Args:
-            usuario_id (int): ID del usuario
+            usuario_id (int): User ID
+
         Returns:
-            Dict: Diccionario con las recomendaciones
+            Dict: Dictionary with recommendations
         """
         try:
-            # Obtener datos del usuario y perfil
+            # Obtain user data and profile
             conn = sqlite3.connect(self.db_path)
             
             query = f"""
@@ -178,80 +186,80 @@ class ContentRecommender:
             conn.close()
             
             if df.empty:
-                raise ValueError(f"No se encontró perfil para el usuario {usuario_id}")
+                raise ValueError(f"No profile found for user {usuario_id}")
             
             perfil = df.iloc[0]
             
-            # Crear tarea de recomendación
+            # Create recommendation task
             recommend_task = Task(
                 description=(
-                    f"Como experto recomendador, analiza el siguiente perfil:\n"
-                    f"- Tipo: {perfil['tipo']}\n"
-                    f"- Intereses: {perfil['areas_interes']}\n"
-                    f"- Nivel: {perfil['nivel_formacion']}\n\n"
-                    f"Usa la herramienta de búsqueda flexible para:\n"
-                    f"1. Buscar contenido relacionado con cada área de interés\n"
-                    f"2. Considerar sinónimos y términos relacionados\n"
-                    f"3. Adaptar las búsquedas al nivel del usuario\n"
-                    f"4. Priorizar contenido con mejor rating\n\n"
-                    f"Genera las 10 mejores recomendaciones personalizadas."
+                    f"As an expert recommender, analyze the following profile:\n"
+                    f"- Type: {perfil['tipo']}\n"
+                    f"- Interests: {perfil['areas_interes']}\n"
+                    f"- Level: {perfil['nivel_formacion']}\n\n"
+                    f"Use the flexible search tool to:\n"
+                    f"1. Search for content related to each area of interest\n"
+                    f"2. Consider synonyms and related terms\n"
+                    f"3. Adapt searches to the user's level\n"
+                    f"4. Prioritize content with higher ratings\n\n"
+                    f"Generate the top 10 personalized recommendations in JSON format as a list."
                 ),
                 expected_output="""[
                     {
-                        "id": 1,
-                        "titulo": "Curso Avanzado de Cloud Computing",
-                        "descripcion": "Aprende cloud computing...",
-                        "tipo": "curso", 
+                        "id": "1",
+                        "titulo": "Advanced Cloud Computing Course",
+                        "descripcion": "Learn cloud computing...",
+                        "tipo": "course", 
                         "modalidad": "online",
-                        "nivel": "avanzado",
+                        "nivel": "advanced",
                         "rating": 4.8,
                         "precio": 299.99,
                         "estado": "activo",
                         "relevancia": 0.95,
                         "match_razones": [
-                            "Rating alto: 4.8",
-                            "Coincidencia directa con intereses",
-                            "Nivel educativo apropiado"
+                            "High rating: 4.8",
+                            "Direct match with interests",
+                            "Appropriate educational level"
                         ]
                     }
                 ]""",
                 agent=self.content_analyzer
             )
 
-            # Crear y ejecutar crew con memoria habilitada
+            # Create and execute crew
             crew = Crew(
                 agents=[self.content_analyzer],
                 tasks=[recommend_task],
                 process=Process.sequential,
-                memory=True,  # Habilitar sistema de memoria
+                memory=True,
                 verbose=True,
                 embedder={
                     "provider": "openai",
                     "config": {
-                        "model": 'text-embedding-3-small'
+                        "model": 'text-embedding-ada-002'
                     }
                 }
             )
 
-            # Obtener y procesar resultados
+            # Get and process results
             results = crew.kickoff()
             return json.loads(results)
 
         except Exception as e:
-            logger.error(f"Error generando recomendaciones: {str(e)}")
+            logger.error(f"Error generating recommendations: {str(e)}")
             return {"error": str(e)}
 
     def reset_memories(self):
-        """Reinicia todas las memorias del sistema"""
+        """Resets all system memories"""
         try:
-            # Usar el comando CLI de crewai para resetear memorias
+            # Use the CrewAI CLI command to reset memories
             os.system("crewai reset-memories --all")
-            logger.info("Memorias reiniciadas exitosamente")
+            logger.info("Memories successfully reset")
         except Exception as e:
-            logger.error(f"Error reiniciando memorias: {str(e)}")
+            logger.error(f"Error resetting memories: {str(e)}")
 
-# Ejemplo de uso
+# Example usage
 if __name__ == "__main__":
     recommender = ContentRecommender()
-    recommendations = recommender.generate(user_id=1)
+    recommendations = recommender.generate(usuario_id=1)
     print(json.dumps(recommendations, indent=2, ensure_ascii=False))
