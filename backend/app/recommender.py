@@ -111,13 +111,15 @@ class ContentRecommender:
         self.schema_tool = Tool(
             name="Database Schema Analyzer",
             func=self.analyze_schema,
-            description="Analiza y extrae el esquema completo de la base de datos educativa"
+            description="Analiza y extrae el esquema completo de la base de datos educativa",
+            return_direct=True
         )
 
         self.query_tool = Tool(
             name="Database Query Tool",
             func=self.query_database,
-            description="Ejecuta consultas SQL en la base de datos y retorna los resultados en formato JSON"
+            description="Ejecuta consultas SQL en la base de datos y retorna los resultados en formato JSON",
+            return_direct=True
         )
 
     def setup_agents(self):
@@ -128,7 +130,8 @@ class ContentRecommender:
             backstory="""Experto en análisis de bases de datos educativas con amplia 
                      experiencia en SQLite y sistemas de recomendación.""",
             tools=[self.schema_tool],
-            verbose=True
+            verbose=True,
+            allow_delegation=False
         )
 
         self.content_analyzer = Agent(
@@ -137,7 +140,8 @@ class ContentRecommender:
             backstory="""Especialista en análisis de contenido educativo y sistemas 
                      de recomendación con enfoque en personalización.""",
             tools=[self.query_tool],
-            verbose=True
+            verbose=True,
+            allow_delegation=False
         )
 
     def generate(self, usuario_id: int) -> Dict:
