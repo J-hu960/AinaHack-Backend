@@ -12,6 +12,7 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 
 class Recomendacion(BaseModel):
+    id: str
     titulo: str
     descripcion: str
     tipo: str
@@ -59,6 +60,7 @@ async def get_recommendations(
         for rec in recommendations:
             try:
                 validated_rec = Recomendacion(
+                    id=rec["id"],
                     titulo=rec["titulo"],
                     descripcion=rec["descripcion"],
                     tipo=rec["tipo"],

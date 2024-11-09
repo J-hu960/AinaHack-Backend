@@ -26,6 +26,7 @@ class MemoryConfig:
         os.makedirs(self.db_dir, exist_ok=True)
 
 class Recomendacion(BaseModel):
+    id: str
     titulo: str
     descripcion: str
     tipo: str
@@ -36,6 +37,9 @@ class Recomendacion(BaseModel):
     estado: str = "activo"
     relevancia: Optional[float] = None
     match_razones: Optional[List[str]] = None
+
+    class Config:
+        from_attributes = True
 
 class ContentRecommender:
     def __init__(self, db_path: Optional[str] = None):
