@@ -19,6 +19,23 @@ app = FastAPI()
 logging.basicConfig(level=logging.DEBUG, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
 logger = logging.getLogger(__name__)
 
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[
+        "https://miav030-525373923741.europe-southwest1.run.app",
+        "https://v030-backend-525373923741.europe-southwest1.run.app",
+        "https://miav030-dev-525373923741.europe-southwest1.run.app",
+        "https://v030-dev-backend-525373923741.europe-southwest1.run.app",
+        "http://localhost:5173",
+        "http://localhost:8080",
+        "ws://localhost:8080",
+        "wss://localhost:8080",
+    ],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
 @app.middleware("http")
 async def log_requests(request: Request, call_next):
     logger.info(f"Request: {request.method} {request.url}")

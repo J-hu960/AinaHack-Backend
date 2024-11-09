@@ -18,6 +18,7 @@ class UserLogin(BaseModel):
     email: str
     password: str
 
+
 @router.post("/register")
 async def register(user: UserRegister):
     if user.email in fake_user_db:
