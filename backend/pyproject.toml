@@ -6,7 +6,7 @@ authors = ["Your Name <you@example.com>"]
 readme = "README.md"
 
 [tool.poetry.dependencies]
-python = "^3.12"
+python = "^3.10.14"
 fastapi = {extras = ["all"], version = "^0.115.4"}
 uvicorn = {extras = ["standard"], version = "^0.32.0"}
 langchain = "^0.3.7"
@@ -21,6 +21,7 @@ openai = "^1.54.3"
 passlib = "^1.7.4"
 bcrypt = "^4.2.0"
 python-jose = "^3.3.0"
+pandas = "^2.2.3"
 
 
 [build-system]
