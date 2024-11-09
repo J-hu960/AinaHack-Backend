@@ -6,15 +6,26 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import OAuth2PasswordRequestForm
 from app.auth import create_access_token, decode_access_token
 from fastapi.responses import JSONResponse
+from typing import Dict
 
 from app.chatbot import router as chatbot_router
 from app.users import router as users_router
-import app.recommender
+from app.recommender import ContentRecommender
 
+app = FastAPI(
+    title="AinaHack API",
+    description="API para el sistema de recomendaciones de contenidos",
+    version="1.0.0"
+)
 
-
-
-app = FastAPI()
+# Configurar CORS
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # En producción, especificar los orígenes permitidos
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 logging.basicConfig(level=logging.DEBUG, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
 logger = logging.getLogger(__name__)
@@ -62,11 +73,34 @@ async def get_current_user(request: Request):
     return payload["sub"]
 
 @app.get("/", tags=["root"])
-async def root(user: str = Depends(get_current_user)):
-    return {
-        "recommendation": recommender.generate(),
-        "trending": recommender.trending(),
-    }
+async def root():
+    return {"message": "Bienvenido a la API de JAA"}
+
+@app.get("/recommendations", response_model=Dict, tags=["recommendations"])
+async def get_recommendations(current_user: str = Depends(get_current_user)):
+    """
+    Obtiene recomendaciones personalizadas para el usuario (demo: siempre usuario 1)
+    """
+    try:
+        user_id = 1  # ID fijo para demo
+        logger.info(f"Solicitando recomendaciones para usuario {user_id}")
+        recommender = ContentRecommender(db_path="db/jaa.sqlite")
+        recommendations = recommender.generate(user_id)
+        
+        if recommendations.get("status") == "error":
+            raise HTTPException(
+                status_code=404, 
+                detail=recommendations.get("error", "Error generando recomendaciones")
+            )
+            
+        return recommendations
+        
+    except Exception as e:
+        logger.error(f"Error en endpoint de recomendaciones: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Error interno del servidor: {str(e)}"
+        )
 
 app.include_router(users_router, prefix="/users", tags=["users"])
 app.include_router(chatbot_router, prefix="/cb", tags=["chatbot"])

@@ -68,10 +68,11 @@ def test_recommendations(test_db):
     try:
         logger.info("=== Iniciando pruebas del sistema de recomendaciones ===")
         
-        # Crear instancia del recomendador
-        logger.debug("Creando instancia del recomendador")
-        recommender = ContentRecommender(db_path=str(backend_dir / "db" / "jaa.sqlite"))
-        logger.info("Recomendador inicializado correctamente")
+        # Crear instancia del recomendador usando la ruta de test
+        db_path = str(backend_dir / "db" / "jaa.sqlite")
+        logger.debug(f"Usando base de datos de prueba en: {db_path}")
+        
+        recommender = ContentRecommender(db_path=db_path)
         
         # Lista de IDs de usuario para probar
         test_user_ids = [1]

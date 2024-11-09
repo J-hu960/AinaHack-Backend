@@ -29,11 +29,36 @@ async def register(user: UserRegister):
 
 @router.post("/login")
 async def login(user: UserLogin, response: Response):
-    db_user = fake_user_db.get(user.email)
-    if not db_user or not verify_password(user.password, db_user["password"]):
-        raise HTTPException(status_code=401, detail="Invalid email or password")
+    # Demo: Siempre usar usuario_id = 1
+    access_token = create_access_token(
+        data={
+            "sub": "1",  # ID fijo para demo
+            "email": user.email
+        }, 
+        expires_delta=timedelta(minutes=30)
+    )
     
-    # Create JWT token and set it in a cookie
-    access_token = create_access_token(data={"sub": user.email}, expires_delta=timedelta(minutes=30))
-    response.set_cookie(key="access_token", value=access_token, httponly=True)
-    return {"message": "Login successful"}
+    response.set_cookie(
+        key="access_token", 
+        value=access_token, 
+        httponly=True,
+        max_age=1800,  # 30 minutos
+        samesite="lax"
+    )
+    
+    return {
+        "message": "Login successful",
+        "user_id": 1
+    }
+
+
+# @router.post("/login")
+# async def login(user: UserLogin, response: Response):
+#     db_user = fake_user_db.get(user.email)
+#     if not db_user or not verify_password(user.password, db_user["password"]):
+#         raise HTTPException(status_code=401, detail="Invalid email or password")
+    
+#     # Create JWT token and set it in a cookie
+#     access_token = create_access_token(data={"sub": user.email}, expires_delta=timedelta(minutes=30))
+#     response.set_cookie(key="access_token", value=access_token, httponly=True)
+#     return {"message": "Login successful"}
