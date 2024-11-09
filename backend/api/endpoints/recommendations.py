@@ -6,7 +6,7 @@ import json
 import os
 from pathlib import Path
 from crewai import Agent, Task, Crew, Process
-from crewai.tools import tool  # Use the @tool decorator from CrewAI
+from langchain.tools import Tool  # Import Tool from langchain.tools
 from pydantic import BaseModel
 
 # Configure logging
@@ -40,6 +40,12 @@ class Recomendacion(BaseModel):
     class Config:
         from_attributes = True
 
+class EmptyArgs(BaseModel):
+    pass
+
+class QueryDatabaseArgs(BaseModel):
+    query: str
+
 class ContentRecommender:
     def __init__(self, db_path: Optional[str] = None):
         """
@@ -65,72 +71,76 @@ class ContentRecommender:
             logger.error(f"Error initializing ContentRecommender: {str(e)}")
             raise
 
+    def analyze_schema(self) -> str:
+        """Analyzes and extracts the schema of the educational database"""
+        try:
+            conn = sqlite3.connect(self.db_path)
+            cursor = conn.cursor()
+
+            cursor.execute("""
+                SELECT name FROM sqlite_master
+                WHERE type='table' AND name NOT LIKE 'sqlite_%';
+            """)
+            tables = cursor.fetchall()
+
+            schema_info = {}
+            for table in tables:
+                table_name = table[0]
+                cursor.execute(f"PRAGMA table_info({table_name});")
+                columns = cursor.fetchall()
+                
+                cursor.execute(f"SELECT * FROM {table_name} LIMIT 1;")
+                sample_data = cursor.fetchone()
+
+                schema_info[table_name] = {
+                    'columns': [
+                        {
+                            'name': col[1],
+                            'type': col[2],
+                            'nullable': not col[3],
+                            'primary_key': bool(col[5]),
+                            'sample_value': str(sample_data[idx]) if sample_data else None
+                        } for idx, col in enumerate(columns)
+                    ],
+                    'row_count': cursor.execute(f"SELECT COUNT(*) FROM {table_name}").fetchone()[0]
+                }
+
+            conn.close()
+            return json.dumps(schema_info, indent=2)
+        except Exception as e:
+            logger.error(f"Error analyzing schema: {str(e)}")
+            return json.dumps({"error": str(e)})
+
+    def query_database(self, query: str) -> str:
+        """Queries and analyzes the content of the educational database"""
+        try:
+            conn = sqlite3.connect(self.db_path)
+            df = pd.read_sql_query(query, conn)
+            conn.close()
+            return df.to_json(orient='records', date_format='iso', default_handler=str)
+        except Exception as e:
+            logger.error(f"Error in query: {str(e)}")
+            return json.dumps({"error": str(e)})
+
     def setup_tools(self):
         """Configures the recommender's tools"""
-        from crewai.tools import tool
+        from langchain.tools import Tool  # Import Tool from langchain.tools
 
-        # Set the db_path as a constant within the tools
-        DB_PATH = self.db_path
+        self.schema_tool = Tool(
+            name="Database Schema Analyzer",
+            func=self.analyze_schema,
+            description="Analyzes and extracts the complete schema of the educational database",
+            return_direct=True,
+            args_schema=EmptyArgs
+        )
 
-        @tool("Database Schema Analyzer")
-        def analyze_schema() -> str:
-            """Analyzes and extracts the complete schema of the educational database."""
-            try:
-                conn = sqlite3.connect(DB_PATH)
-                cursor = conn.cursor()
-
-                cursor.execute("""
-                    SELECT name FROM sqlite_master
-                    WHERE type='table' AND name NOT LIKE 'sqlite_%';
-                """)
-                tables = cursor.fetchall()
-
-                schema_info = {}
-                for table in tables:
-                    table_name = table[0]
-                    cursor.execute(f"PRAGMA table_info({table_name});")
-                    columns = cursor.fetchall()
-                    
-                    cursor.execute(f"SELECT * FROM {table_name} LIMIT 1;")
-                    sample_data = cursor.fetchone()
-
-                    schema_info[table_name] = {
-                        'columns': [
-                            {
-                                'name': col[1],
-                                'type': col[2],
-                                'nullable': not col[3],
-                                'primary_key': bool(col[5]),
-                                'sample_value': str(sample_data[idx]) if sample_data else None
-                            } for idx, col in enumerate(columns)
-                        ],
-                        'row_count': cursor.execute(f"SELECT COUNT(*) FROM {table_name}").fetchone()[0]
-                    }
-
-                conn.close()
-                return json.dumps(schema_info, indent=2)
-            except Exception as e:
-                logger.error(f"Error analyzing schema: {str(e)}")
-                return json.dumps({"error": str(e)})
-
-        @tool("Database Query Tool")
-        def query_database(query: str) -> str:
-            """Executes SQL queries on the database and returns results in JSON format.
-
-            Parameters:
-            - query: The SQL query to execute.
-            """
-            try:
-                conn = sqlite3.connect(DB_PATH)
-                df = pd.read_sql_query(query, conn)
-                conn.close()
-                return df.to_json(orient='records', date_format='iso', default_handler=str)
-            except Exception as e:
-                logger.error(f"Error in query: {str(e)}")
-                return json.dumps({"error": str(e)})
-
-        self.schema_tool = analyze_schema
-        self.query_tool = query_database
+        self.query_tool = Tool(
+            name="Database Query Tool",
+            func=self.query_database,
+            description="Executes SQL queries on the database and returns results in JSON format",
+            return_direct=True,
+            args_schema=QueryDatabaseArgs
+        )
 
     def setup_agents(self):
         """Configures the system's agents"""
