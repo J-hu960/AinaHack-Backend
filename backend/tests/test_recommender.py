@@ -74,7 +74,7 @@ def test_recommendations(test_db):
         logger.info("Recomendador inicializado correctamente")
         
         # Lista de IDs de usuario para probar
-        test_user_ids = [4]
+        test_user_ids = [1]
         
         for user_id in test_user_ids:
             logger.info(f"\n=== Procesando usuario {user_id} ===")
